@@ -1,0 +1,25 @@
+# Operator note:
+# Apply AppProjects first and keep default project locked down.
+# See: projects/README.md
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bootstrap-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://github.com/beckjim/xxx-gitops
+    targetRevision: main
+    path: bootstrap/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

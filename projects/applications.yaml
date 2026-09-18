@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: app1
+  namespace: argocd
+spec:
+  description: Team app1 project for application app1
+  sourceRepos:
+    - https://github.com/beckjim/xxx-gitops
+  destinations:
+    - namespace: app1
+      server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  roles:
+    - name: maintainers
+      description: app1 maintainers can manage app1 applications
+      policies:
+        - p, proj:app1:maintainers, applications, *, app1/*, allow
+      groups:
+        - app1-team

@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  description: Locked down default project; all applications must use explicit projects
+  sourceRepos: []
+  destinations: []
+  namespaceResourceBlacklist:
+    - group: "*"
+      kind: "*"
+  clusterResourceBlacklist:
+    - group: "*"
+      kind: "*"

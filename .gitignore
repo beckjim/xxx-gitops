@@ -1,0 +1,31 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Secrets (never commit these)
+secrets/
+.env
+*.key
+*.pem
+
+# Terraform (if used)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Helm
+charts/*.tgz
+
+# Kustomize build output
+kustomize-build/
