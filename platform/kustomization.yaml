@@ -8,3 +8,4 @@ resources:
   - ingress-nginx
   - kyverno
   - external-secrets
+  - kube-prometheus-stack
