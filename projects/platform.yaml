@@ -9,6 +9,7 @@ spec:
     - https://github.com/beckjim/xxx-gitops
     - https://charts.jetstack.io
     - https://kubescape.github.io/helm-charts
+    - https://kubernetes-sigs.github.io/metrics-server/
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc
