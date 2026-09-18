@@ -20,6 +20,12 @@ spec:
           value: "true"
         - name: admissionController.replicas
           value: "1"
+        - name: reportsServer.enabled
+          value: "true"
+        - name: openreports.enabled
+          value: "true"
+        - name: openreports.installCrds
+          value: "true"
   destination:
     server: https://kubernetes.default.svc
     namespace: kyverno
