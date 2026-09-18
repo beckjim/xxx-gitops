@@ -16,6 +16,8 @@ spec:
     helm:
       releaseName: kyverno
       parameters:
+        - name: crds.install
+          value: "true"
         - name: admissionController.replicas
           value: "1"
   destination:
