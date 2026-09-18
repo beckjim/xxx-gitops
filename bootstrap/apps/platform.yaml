@@ -12,10 +12,10 @@ spec:
   source:
     repoURL: https://github.com/beckjim/xxx-gitops
     targetRevision: main
-    path: infrastructure
+    path: platform
   destination:
     server: https://kubernetes.default.svc
-    namespace: infrastructure
+    namespace: platform
   syncPolicy:
     automated:
       prune: true
