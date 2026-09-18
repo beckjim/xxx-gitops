@@ -1,0 +1,4 @@
+- is bootstraping really optimal
+- better? connect repo?
+- move app1 to extra repo
+- log solution
