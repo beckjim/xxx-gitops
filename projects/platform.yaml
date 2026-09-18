@@ -15,6 +15,7 @@ spec:
     - https://charts.external-secrets.io
     - https://prometheus-community.github.io/helm-charts
     - https://grafana.github.io/helm-charts
+    - https://inspektor-gadget.github.io/charts/
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc

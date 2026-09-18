@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inspektor-gadget
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://inspektor-gadget.github.io/charts/
+    chart: gadget
+    targetRevision: 0.56.0
+    helm:
+      releaseName: gadget
+      values: |
+        config:
+          daemonLogLevel: "info"
+          operator:
+            kubemanager:
+              hook-mode: "auto"
+            oci:
+              verify-image: true
+              allowed-gadgets: []
+              disallow-pulling: false
+          gadgetConfigMaps:
+            - name: trace-open-default
+              imageName: ghcr.io/inspektor-gadget/trace_open:latest
+              timeout: 0
+              logLevel: 0
+              nodes: []
+              paramValues: {}
+
+        podSecurityContext:
+          privileged: true
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
