@@ -12,6 +12,7 @@ spec:
     - https://kubernetes-sigs.github.io/metrics-server/
     - https://kubernetes.github.io/ingress-nginx
     - https://kyverno.github.io/kyverno/
+    - https://charts.external-secrets.io
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc
