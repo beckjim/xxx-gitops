@@ -18,6 +18,10 @@ spec:
       parameters:
         - name: installCRDs
           value: "true"
+        - name: webhook.create
+          value: "false"
+        - name: certController.create
+          value: "false"
   destination:
     server: https://kubernetes.default.svc
     namespace: external-secrets
