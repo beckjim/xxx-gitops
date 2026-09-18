@@ -1,26 +1,29 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: platform-infrastructure
+  name: cert-manager
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: platform-admins
   source:
-    repoURL: https://github.com/beckjim/xxx-gitops
-    targetRevision: main
-    path: infrastructure
+    repoURL: oci://quay.io/jetstack/charts
+    chart: cert-manager
+    targetRevision: v1.21.2
+    helm:
+      releaseName: cert-manager
+      parameters:
+        - name: crds.enabled
+          value: "true"
   destination:
     server: https://kubernetes.default.svc
-    namespace: infrastructure
+    namespace: cert-manager
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-      allowEmpty: true
     syncOptions:
       - CreateNamespace=true
-  

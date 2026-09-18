@@ -7,6 +7,7 @@ spec:
   description: Platform-admin managed applications and cluster components
   sourceRepos:
     - https://github.com/beckjim/xxx-gitops
+    - oci://quay.io/jetstack/charts
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc
