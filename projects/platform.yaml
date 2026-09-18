@@ -8,6 +8,7 @@ spec:
   sourceRepos:
     - https://github.com/beckjim/xxx-gitops
     - https://charts.jetstack.io
+    - https://kubescape.github.io/helm-charts
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc
