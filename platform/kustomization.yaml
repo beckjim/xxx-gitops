@@ -5,3 +5,4 @@ resources:
   - cert-manager
   - kubescape
   - metrics-server
+  - ingress-nginx
