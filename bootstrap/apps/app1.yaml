@@ -20,5 +20,4 @@ spec:
     automated:
       prune: true
       selfHeal: true
-      - ServerSideApply=true
 
