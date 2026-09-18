@@ -6,3 +6,4 @@ resources:
   - kubescape
   - metrics-server
   - ingress-nginx
+  - kyverno
