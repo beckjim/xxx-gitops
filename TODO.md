@@ -1,3 +1,5 @@
 - is bootstraping really optimal
 - better? connect repo?
 - move app1 to extra repo
+- how to keep things up to date 
+- how to check if there are updates
