@@ -54,9 +54,18 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /metadata/annotations
+        - /metadata/labels
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - SkipDryRunOnMissingResource=true
