@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: headlamp
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://github.com/headlamp-k8s/headlamp.git
+    targetRevision: v0.45.0
+    path: charts/headlamp
+    helm:
+      releaseName: headlamp
+      values: |
+        service:
+          type: ClusterIP
+        config:
+          inCluster: true
+          inClusterContextName: "main"
+        clusterRoleBinding:
+          create: true
+          clusterRoleName: cluster-admin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: headlamp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
