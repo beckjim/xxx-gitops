@@ -8,7 +8,7 @@ echo ""
 
 # Step 1: Create management cluster for ArgoCD
 echo "Step 1: Creating management cluster for ArgoCD..."
-kind create cluster --name management --config management/cluster.yaml --wait 200s
+kind create cluster --name management --config management/cluster.yaml --wait 60s
 echo "SUCCESS: Management cluster created"
 echo ""
 
@@ -25,8 +25,8 @@ echo ""
 
 # Step 3: Wait for ArgoCD to be ready
 echo "Step 3: Waiting for ArgoCD to be ready (this may take 1-2 minutes)..."
-kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
-kubectl wait --for=condition=available --timeout=300s deployment/argocd-repo-server -n argocd
+kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n argocd
+kubectl wait --for=condition=available --timeout=120s deployment/argocd-repo-server -n argocd
 echo "SUCCESS: ArgoCD is ready"
 echo ""
 
