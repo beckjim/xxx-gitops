@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ingress-nginx
+  name: nginx-gateway
   namespace: argocd
 spec:
   source:
     helm:
-      releaseName: ingress-nginx
+      releaseName: nginx-gateway
       parameters:
-        - name: controller.service.type
+        - name: nginx.service.type
           value: "LoadBalancer"
-        - name: controller.service.annotations.metallb\.universe\.tf/address-pool
+        - name: nginx.service.annotations.metallb\.universe\.tf/address-pool
           value: "ingress-pool"

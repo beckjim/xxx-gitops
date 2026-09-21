@@ -36,14 +36,16 @@ Examples:
 - `./bootstrap/bootstrap-cluster.sh prod` uses `bootstrap/apps/prod`
 - `./bootstrap/bootstrap-cluster.sh test` falls back to `bootstrap/apps`
 
-## MetalLB Ingress Convention
+## MetalLB Gateway Convention
+
+Note: checkout https://oneuptime.com/blog/post/2026-02-20-metallb-kind-local-development/view for general usage on Windows/WSL2/Docker and kind.
 
 For clusters using `bootstrap/apps/{management,dev,staging,prod}`:
 
-- ingress-nginx is configured as `LoadBalancer`
+- nginx-gateway is configured as `LoadBalancer`
 - MetalLB is installed as a platform component
 - each cluster gets its own non-overlapping MetalLB `IPAddressPool`
-- Kind `extraPortMappings` for ingress (`30080`/`30443`) are not required
+- Kind `extraPortMappings` for gateway NodePorts (`30080`/`30443`) are not required
 
 Pool ranges are generated from the Docker network subnet.
 
@@ -64,7 +66,7 @@ and rewrites the following files:
 
 Commit and push these changes so Argo CD can apply them.
 
-Legacy/fallback path (`bootstrap/apps`) still uses NodePort ingress settings.
+Legacy/fallback path (`bootstrap/apps`) still uses NodePort gateway settings.
 
 ## Platform Sync Wave Matrix
 
@@ -72,37 +74,37 @@ Current Argo CD sync-wave order for platform applications:
 
 - `1`: cert-manager
 - `2`: kubescape
-- `3`: metallb, metrics-server
-- `4`: ingress-nginx
+- `3`: gateway-api-crds, metallb, metrics-server
+- `4`: nginx-gateway
 - `5`: kyverno
 - `6`: external-secrets
 - `7`: headlamp, kube-prometheus-stack, policy-reporter
 - `8`: loki
 - `9`: inspektor-gadget
 
-Ingress manifests for UI apps are colocated in each app folder and use wave `8`:
+Gateway route manifests for UI apps are colocated in each app folder and use wave `8`:
 
-- `platform/headlamp/ingress.yaml`
-- `platform/kube-prometheus-stack/ingress.yaml`
-- `platform/policy-reporter/ingress.yaml`
+- `platform/headlamp/httproute.yaml`
+- `platform/kube-prometheus-stack/httproute.yaml`
+- `platform/policy-reporter/httproute.yaml`
 
-This keeps ingress creation after ingress-nginx (`4`) and after app declarations (`7`).
+This keeps route creation after nginx-gateway (`4`) and after app declarations (`7`).
 
-## Platform App Access via Ingress
+## Platform App Access via Gateway
 
-Three platform UIs are exposed through ingress-nginx:
+Three platform UIs are exposed through Gateway API HTTPRoutes:
 
 - `platform.<cluster>.local/grafana` -> Grafana (`monitoring/kube-prometheus-stack-grafana`)
 - `platform.<cluster>.local/headlamp` -> Headlamp (`headlamp/headlamp`)
 - `platform.<cluster>.local/policy-reporter` -> Policy Reporter UI (`kyverno/policy-reporter-ui`)
 
-Get the ingress endpoint:
+Get the gateway endpoint:
 
 ```bash
-kubectl -n ingress-nginx get svc ingress-nginx-controller
+kubectl -n nginx-gateway get svc
 ```
 
-If ingress-nginx is `LoadBalancer`, add entries to `/etc/hosts` using the `EXTERNAL-IP`:
+If nginx-gateway is `LoadBalancer`, add entries to `/etc/hosts` using the `EXTERNAL-IP`:
 
 ```bash
 <EXTERNAL-IP> platform.management.local
@@ -122,20 +124,21 @@ Root path behavior:
 - `http://platform.<cluster>.local` redirects to `http://platform.<cluster>.local/grafana`
 
 If you are on the NodePort fallback path (`bootstrap/apps`), use the mapped host port
-for ingress and send the Host header (or browser host mapping) for
+for gateway and send the Host header (or browser host mapping) for
 `platform.<cluster>.local`.
 
-## Verify Platform Ingress
+## Verify Platform Gateway
 
 Run these checks after Argo CD sync:
 
 ```bash
-kubectl -n argocd get app ingress-nginx kube-prometheus-stack headlamp kyverno policy-reporter
-kubectl -n ingress-nginx get svc ingress-nginx-controller
+kubectl -n argocd get app gateway-api-crds nginx-gateway kube-prometheus-stack headlamp kyverno policy-reporter
+kubectl -n nginx-gateway get gateway platform-gateway
+kubectl -n nginx-gateway get svc
 kubectl -n monitoring get svc kube-prometheus-stack-grafana
 kubectl -n headlamp get svc headlamp
 kubectl -n kyverno get svc policy-reporter-ui
-kubectl get ingress -A
+kubectl get httproute -A
 ```
 
 Quick HTTP checks (replace `<EXTERNAL-IP>` if you are not using `/etc/hosts`):
@@ -150,9 +153,9 @@ Expected result: `HTTP/1.1 200 OK` or `HTTP/1.1 302 Found`.
 
 ## NodePort Fallback Convention
 
-For fallback path users (`bootstrap/apps`), ingress remains NodePort-based:
+For fallback path users (`bootstrap/apps`), gateway remains NodePort-based:
 
-- Keep ingress-nginx NodePorts fixed to `30080` (HTTP) and `30443` (HTTPS).
+- Keep nginx-gateway NodePorts fixed to `30080` (HTTP) and `30443` (HTTPS).
 - In each cluster config, map those fixed `containerPort` values to unique `hostPort` values.
 
 Example mapping in a cluster config:
@@ -160,7 +163,7 @@ Example mapping in a cluster config:
 - `containerPort: 30080` -> `hostPort: 30082`
 - `containerPort: 30443` -> `hostPort: 30445`
 
-This allows one shared Argo CD app (`platform/ingress-nginx/application.yaml`) while each Kind cluster still exposes ingress on non-conflicting host ports.
+This allows one shared Argo CD app (`platform/nginx-gateway/application.yaml`) while each Kind cluster still exposes gateway traffic on non-conflicting host ports.
 
 ## Production Safety Guard
 

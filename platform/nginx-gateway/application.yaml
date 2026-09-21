@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-gateway
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://nginx.github.io/nginx-gateway-fabric
+    chart: nginx-gateway-fabric
+    targetRevision: 2.7.2
+    helm:
+      releaseName: nginx-gateway
+      parameters:
+        - name: nginxGateway.gatewayClassName
+          value: platform-nginx
+        - name: nginx.service.type
+          value: NodePort
+        - name: nginx.service.nodePorts[0].listenerPort
+          value: "80"
+        - name: nginx.service.nodePorts[0].port
+          value: "30080"
+        - name: nginx.service.nodePorts[1].listenerPort
+          value: "443"
+        - name: nginx.service.nodePorts[1].port
+          value: "30443"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-gateway
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

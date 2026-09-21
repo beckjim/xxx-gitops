@@ -4,9 +4,10 @@ resources:
   - namespaces/app1.yaml
   - cert-manager
   - kubescape
+  - gateway-api-crds
   - metrics-server
   - metallb
-  - ingress-nginx
+  - nginx-gateway
   - kyverno
   - policy-reporter
   - external-secrets
