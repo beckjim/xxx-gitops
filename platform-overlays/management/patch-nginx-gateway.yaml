@@ -8,5 +8,7 @@ spec:
     helm:
       releaseName: nginx-gateway
       parameters:
+        - name: nginxGateway.gatewayClassName
+          value: platform-nginx
         - name: nginx.service.type
           value: "LoadBalancer"
