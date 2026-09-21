@@ -16,8 +16,14 @@ spec:
     helm:
       releaseName: ingress-nginx
       parameters:
+        # Kind clusters do not provide a cloud LoadBalancer by default.
+        # Use NodePort and fixed ports that match kind extraPortMappings.
         - name: controller.service.type
-          value: "LoadBalancer"
+          value: "NodePort"
+        - name: controller.service.nodePorts.http
+          value: "30080"
+        - name: controller.service.nodePorts.https
+          value: "30443"
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx

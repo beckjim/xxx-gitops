@@ -6,7 +6,8 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-KUBE_CONTEXT="$1"
+KUBE_CONTEXT="kind-$1"
+CLUSTER_NAME="$1"
 AUTO_APPROVE="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -40,8 +41,36 @@ kubectl config use-context "${KUBE_CONTEXT}" >/dev/null
 echo "Applying AppProjects from ${REPO_ROOT}/projects"
 kubectl apply -k "${REPO_ROOT}/projects"
 
-echo "Applying root application from ${REPO_ROOT}/bootstrap/root-app.yaml"
-kubectl apply -f "${REPO_ROOT}/bootstrap/root-app.yaml"
+BOOTSTRAP_APPS_PATH="bootstrap/apps"
+if [[ -d "${REPO_ROOT}/bootstrap/apps/${CLUSTER_NAME}" ]]; then
+  BOOTSTRAP_APPS_PATH="bootstrap/apps/${CLUSTER_NAME}"
+fi
+
+echo "Applying root application (source path: ${BOOTSTRAP_APPS_PATH})"
+cat <<EOF | kubectl apply -f -
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bootstrap-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://github.com/beckjim/xxx-gitops
+    targetRevision: main
+    path: ${BOOTSTRAP_APPS_PATH}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+EOF
 
 echo
 echo "Bootstrap apply complete. Quick verification:"

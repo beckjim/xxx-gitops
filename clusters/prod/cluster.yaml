@@ -15,8 +15,8 @@ nodes:
             "enable-admission-plugins": "NodeRestriction,PodSecurity"
     # Map ports for NodePort services
     extraPortMappings:
-      - containerPort: 30000
-        hostPort: 30000
+      - containerPort: 30001  
+        hostPort: 30001
         protocol: TCP
   - role: worker
 # Networking defaults to kindnet CNI

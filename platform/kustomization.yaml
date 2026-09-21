@@ -5,6 +5,7 @@ resources:
   - cert-manager
   - kubescape
   - metrics-server
+  - metallb
   - ingress-nginx
   - kyverno
   - external-secrets
