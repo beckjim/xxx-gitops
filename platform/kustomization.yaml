@@ -2,12 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespaces/app1.yaml
+  - ingresses
   - cert-manager
   - kubescape
   - metrics-server
   - metallb
   - ingress-nginx
   - kyverno
+  - policy-reporter
   - external-secrets
   - kube-prometheus-stack
   - loki
