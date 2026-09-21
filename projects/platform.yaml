@@ -15,7 +15,7 @@ spec:
     - https://kubernetes-sigs.github.io/metrics-server/
     - https://metallb.github.io/metallb
     - https://github.com/nginx/nginx-gateway-fabric
-    - oci://ghcr.io/nginx/charts
+    - ghcr.io/nginx/charts
     - https://kyverno.github.io/kyverno/
     - https://kyverno.github.io/policy-reporter
     - https://charts.external-secrets.io
