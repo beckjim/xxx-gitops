@@ -3,15 +3,13 @@ kind: Gateway
 metadata:
   name: platform-gateway
   namespace: nginx-gateway
-  annotations:
-    argocd.argoproj.io/sync-wave: "6"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   gatewayClassName: platform-nginx
   listeners:
     - name: http
       protocol: HTTP
       port: 80
+      hostname: platform.local
       allowedRoutes:
         namespaces:
           from: All

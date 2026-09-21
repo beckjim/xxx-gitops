@@ -8,6 +8,7 @@ resources:
   - metrics-server
   - metallb
   - nginx-gateway
+  - platform-routes
   - kyverno
   - policy-reporter
   - external-secrets

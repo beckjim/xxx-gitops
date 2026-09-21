@@ -74,19 +74,21 @@ Current Argo CD sync-wave order for platform applications:
 
 - `1`: cert-manager
 - `2`: kubescape
-- `3`: gateway-api-crds, metallb, metrics-server
+- `3`: gateway-api CRDs, metallb, metrics-server
 - `4`: nginx-gateway
 - `5`: kyverno
 - `6`: external-secrets
 - `7`: headlamp, kube-prometheus-stack, policy-reporter
-- `8`: loki
+- `8`: loki, platform-routes
 - `9`: inspektor-gadget
 
-Gateway route manifests for UI apps are colocated in each app folder and use wave `8`:
+Gateway route manifests are managed by the `platform-routes` application:
 
-- `platform/headlamp/httproute.yaml`
-- `platform/kube-prometheus-stack/httproute.yaml`
-- `platform/policy-reporter/httproute.yaml`
+- base: `platform/routes/base/`
+- management: `platform/routes/management/`
+- dev: `platform/routes/dev/`
+- staging: `platform/routes/staging/`
+- prod: `platform/routes/prod/`
 
 This keeps route creation after nginx-gateway (`4`) and after app declarations (`7`).
 
@@ -132,7 +134,7 @@ for gateway and send the Host header (or browser host mapping) for
 Run these checks after Argo CD sync:
 
 ```bash
-kubectl -n argocd get app gateway-api-crds nginx-gateway kube-prometheus-stack headlamp kyverno policy-reporter
+kubectl -n argocd get app nginx-gateway platform-routes kube-prometheus-stack headlamp kyverno policy-reporter
 kubectl -n nginx-gateway get gateway platform-gateway
 kubectl -n nginx-gateway get svc
 kubectl -n monitoring get svc kube-prometheus-stack-grafana

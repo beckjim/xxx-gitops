@@ -5,4 +5,4 @@ resources:
   - metallb-config.yaml
 patches:
   - path: patch-nginx-gateway.yaml
-  - path: patch-platform-hosts.yaml
+  - path: patch-platform-routes.yaml
