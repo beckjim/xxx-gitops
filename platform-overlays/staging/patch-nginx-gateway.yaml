@@ -10,5 +10,3 @@ spec:
       parameters:
         - name: nginx.service.type
           value: "LoadBalancer"
-        - name: nginx.service.annotations.metallb\.universe\.tf/address-pool
-          value: "ingress-pool"
