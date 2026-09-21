@@ -71,16 +71,16 @@ The same root app then reconciles environment-specific content from Git as your 
 For one-command onboarding, use:
 
 ```bash
-./clusters/bootstrap-cluster.sh <kube-context>
+./bootstrap/bootstrap-cluster.sh <kube-context>
 ```
 
 Examples:
 
 ```bash
-./clusters/bootstrap-cluster.sh dev
-./clusters/bootstrap-cluster.sh management
-./clusters/bootstrap-cluster.sh test
-./clusters/bootstrap-cluster.sh prod
+./bootstrap/bootstrap-cluster.sh dev
+./bootstrap/bootstrap-cluster.sh management
+./bootstrap/bootstrap-cluster.sh test
+./bootstrap/bootstrap-cluster.sh prod
 ```
 
 For production-like contexts, the helper asks for explicit confirmation.

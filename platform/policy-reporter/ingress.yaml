@@ -1,20 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: grafana
-  namespace: monitoring
+  name: policy-reporter
+  namespace: kyverno
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-wave: "8"
 spec:
   ingressClassName: nginx
   rules:
-    - host: grafana.platform.local
+    - host: platform.local
       http:
         paths:
-          - path: /
+          - path: /policy-reporter
             pathType: Prefix
             backend:
               service:
-                name: kube-prometheus-stack-grafana
+                name: policy-reporter-ui
                 port:
-                  number: 80
+                  number: 8080

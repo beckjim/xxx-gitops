@@ -19,6 +19,7 @@ spec:
         fullnameOverride: policy-reporter
         ui:
           enabled: true
+          pathPrefix: /policy-reporter
           service:
             type: ClusterIP
   destination:

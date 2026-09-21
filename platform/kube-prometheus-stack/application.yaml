@@ -33,6 +33,10 @@ spec:
           adminPassword: admin
           service:
             type: ClusterIP
+          grafana.ini:
+            server:
+              root_url: "%(protocol)s://%(domain)s/grafana/"
+              serve_from_sub_path: true
           additionalDataSources:
             - name: Loki
               type: loki

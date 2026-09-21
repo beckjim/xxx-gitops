@@ -21,6 +21,7 @@ spec:
         config:
           inCluster: true
           inClusterContextName: "main"
+          basePath: "/headlamp"
         clusterRoleBinding:
           create: true
           clusterRoleName: cluster-admin
