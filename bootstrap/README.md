@@ -57,11 +57,12 @@ Run from the repository root.
 - Add or change applications via Git PRs only
 - Keep `default` AppProject deny-all
 
-## Dev/Test/Prod Usage
+## Dev/Management/Test/Prod Usage
 
 Apply the same two-step seed flow to each target cluster context:
 
 - `dev`
+- `management`
 - `test`
 - `prod`
 
@@ -77,6 +78,7 @@ Examples:
 
 ```bash
 ./clusters/bootstrap-cluster.sh dev
+./clusters/bootstrap-cluster.sh management
 ./clusters/bootstrap-cluster.sh test
 ./clusters/bootstrap-cluster.sh prod
 ```

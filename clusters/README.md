@@ -12,6 +12,7 @@ Run from repository root:
 Examples:
 
 - `./clusters/bootstrap-cluster.sh dev`
+- `./clusters/bootstrap-cluster.sh management`
 - `./clusters/bootstrap-cluster.sh test`
 - `./clusters/bootstrap-cluster.sh prod`
 
