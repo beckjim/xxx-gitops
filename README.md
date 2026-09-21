@@ -1,4 +1,14 @@
-# Argo CD AppProjects
+# Argo CD GitOps Bootstrap
+
+Use this repository with a minimal seed bootstrap:
+
+1. Apply AppProjects (`projects/`)
+2. Apply root app (`bootstrap/root-app.yaml`)
+3. Let Argo CD manage everything else
+
+Detailed runbook: `bootstrap/README.md`
+
+## Argo CD AppProjects
 
 This folder contains AppProject definitions that are applied before bootstrap Applications.
 

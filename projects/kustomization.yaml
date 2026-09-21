@@ -4,4 +4,3 @@ resources:
   - default.yaml
   - platform.yaml
   - applications.yaml
-  - security.yaml
