@@ -80,9 +80,9 @@ This keeps ingress creation after ingress-nginx (`4`) and after app declarations
 
 Three platform UIs are exposed through ingress-nginx:
 
-- `platform.local/grafana` -> Grafana (`monitoring/kube-prometheus-stack-grafana`)
-- `platform.local/headlamp` -> Headlamp (`headlamp/headlamp`)
-- `platform.local/policy-reporter` -> Policy Reporter UI (`kyverno/policy-reporter-ui`)
+- `platform.<cluster>.local/grafana` -> Grafana (`monitoring/kube-prometheus-stack-grafana`)
+- `platform.<cluster>.local/headlamp` -> Headlamp (`headlamp/headlamp`)
+- `platform.<cluster>.local/policy-reporter` -> Policy Reporter UI (`kyverno/policy-reporter-ui`)
 
 Get the ingress endpoint:
 
@@ -93,21 +93,25 @@ kubectl -n ingress-nginx get svc ingress-nginx-controller
 If ingress-nginx is `LoadBalancer`, add entries to `/etc/hosts` using the `EXTERNAL-IP`:
 
 ```bash
-<EXTERNAL-IP> platform.local
+<EXTERNAL-IP> platform.management.local
+<EXTERNAL-IP> platform.dev.local
+<EXTERNAL-IP> platform.staging.local
+<EXTERNAL-IP> platform.prod.local
 ```
 
 Then open:
 
-- `http://platform.local/grafana`
-- `http://platform.local/headlamp`
-- `http://platform.local/policy-reporter`
+- `http://platform.management.local/grafana`
+- `http://platform.management.local/headlamp`
+- `http://platform.management.local/policy-reporter`
 
 Root path behavior:
 
-- `http://platform.local` redirects to `http://platform.local/grafana`
+- `http://platform.<cluster>.local` redirects to `http://platform.<cluster>.local/grafana`
 
 If you are on the NodePort fallback path (`bootstrap/apps`), use the mapped host port
-for ingress and send the Host header (or browser host mapping) for `platform.local`.
+for ingress and send the Host header (or browser host mapping) for
+`platform.<cluster>.local`.
 
 ## Verify Platform Ingress
 
@@ -125,9 +129,9 @@ kubectl get ingress -A
 Quick HTTP checks (replace `<EXTERNAL-IP>` if you are not using `/etc/hosts`):
 
 ```bash
-curl -sSI -H 'Host: platform.local' http://<EXTERNAL-IP>/grafana | head -n 1
-curl -sSI -H 'Host: platform.local' http://<EXTERNAL-IP>/headlamp | head -n 1
-curl -sSI -H 'Host: platform.local' http://<EXTERNAL-IP>/policy-reporter | head -n 1
+curl -sSI -H 'Host: platform.management.local' http://<EXTERNAL-IP>/grafana | head -n 1
+curl -sSI -H 'Host: platform.management.local' http://<EXTERNAL-IP>/headlamp | head -n 1
+curl -sSI -H 'Host: platform.management.local' http://<EXTERNAL-IP>/policy-reporter | head -n 1
 ```
 
 Expected result: `HTTP/1.1 200 OK` or `HTTP/1.1 302 Found`.
