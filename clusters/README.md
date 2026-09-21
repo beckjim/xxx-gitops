@@ -45,12 +45,24 @@ For clusters using `bootstrap/apps/{management,dev,staging,prod}`:
 - each cluster gets its own non-overlapping MetalLB `IPAddressPool`
 - Kind `extraPortMappings` for ingress (`30080`/`30443`) are not required
 
-Default pools configured:
+Pool ranges are generated from the Docker network subnet.
 
-- management: `172.18.255.10-172.18.255.19`
-- dev: `172.18.255.20-172.18.255.29`
-- staging: `172.18.255.30-172.18.255.39`
-- prod: `172.18.255.40-172.18.255.49`
+From repository root:
+
+```bash
+./platform/metallb-config/update-from-docker-network.sh kind
+```
+
+This script inspects the network subnet (for example with
+`docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}'`)
+and rewrites the following files:
+
+- `platform/metallb-config/management/pool.yaml` (slice `.10-.19`)
+- `platform/metallb-config/dev/pool.yaml` (slice `.20-.29`)
+- `platform/metallb-config/staging/pool.yaml` (slice `.30-.39`)
+- `platform/metallb-config/prod/pool.yaml` (slice `.40-.49`)
+
+Commit and push these changes so Argo CD can apply them.
 
 Legacy/fallback path (`bootstrap/apps`) still uses NodePort ingress settings.
 
