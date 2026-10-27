@@ -11,7 +11,7 @@ spec:
   project: platform-admins
   source:
     repoURL: https://github.com/headlamp-k8s/headlamp.git
-    targetRevision: v0.45.0
+    targetRevision: v0.46.0
     path: charts/headlamp
     helm:
       releaseName: headlamp
