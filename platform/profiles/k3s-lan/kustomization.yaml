@@ -10,6 +10,17 @@ patches:
       group: argoproj.io
       version: v1alpha1
       kind: Application
+      name: kyverno
+    patch: |-
+      - op: add
+        path: /spec/source/helm/parameters/-
+        value:
+          name: reports-server.postgresql.primary.containerSecurityContext.appArmorProfile.type
+          value: Unconfined
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
       name: metrics-server
     patch: |-
       - op: replace

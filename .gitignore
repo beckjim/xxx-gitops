@@ -29,3 +29,4 @@ charts/*.tgz
 
 # Kustomize build output
 kustomize-build/
+clusters/tmp.sh

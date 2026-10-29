@@ -159,6 +159,18 @@ The K3s profile retains all add-ons, not just a minimal K3s footprint:
 - Gadget uses `/run/k3s/containerd/containerd.sock`. Kubescape retains its
   chart's `/run` host mount and uses the K3s-specific **runc binary** at
   `/host/var/lib/rancher/k3s/data/current/bin/runc`, not a socket as runtime path.
+- Kyverno reports-server's PostgreSQL container uses AppArmor `Unconfined` in
+  this profile to work around Ubuntu/containerd AppArmor stacking denying
+  signals between PostgreSQL processes. Symptoms include kernel audit
+  `operation="signal"` denials and `could not signal for checkpoint: Permission
+  denied` during recovery. This removes AppArmor confinement only for that
+  container; non-root execution, dropped capabilities, disabled privilege
+  escalation and RuntimeDefault seccomp remain enabled. Other profiles and
+  containers retain their defaults. Revisit this exception after the host/runtime
+  issue is fixed. Do not delete the database PVC or reset WAL to address these
+  signal denials. If an unhealthy existing Pod blocks the StatefulSet rollout,
+  sync the updated template first, then recreate only `kyverno-postgresql-0`
+  in namespace `kyverno`, retaining its PVC.
 - K3s metrics-server does not inherit kind's `--kubelet-insecure-tls`. Confirm
   kubelet certificate/SAN trust; if your host configuration differs, fix trust
   or add an explicit, reviewed profile exception rather than weakening all

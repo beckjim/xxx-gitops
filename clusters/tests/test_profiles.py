@@ -64,6 +64,15 @@ class ProfileTests(unittest.TestCase):
         params = apps["kubescape"]["spec"]["source"]["helm"]["parameters"]
         self.assertIn({"name": "clusterName", "value": "management-k3s"}, params)
 
+    def test_postgresql_apparmor_exception_is_k3s_only(self):
+        parameter = "reports-server.postgresql.primary.containerSecurityContext.appArmorProfile.type"
+        for cluster in ("management-k3s", "management-kind", "management"):
+            with self.subTest(cluster=cluster):
+                params = applications(f"platform-overlays/{cluster}")["kyverno"]["spec"]["source"]["helm"]["parameters"]
+                overrides = [item["value"] for item in params if item["name"] == parameter]
+                self.assertEqual(overrides, ["Unconfined"] if cluster == "management-k3s" else [])
+                self.assertIn({"name": "reportsServer.enabled", "value": "true"}, params)
+
     def test_k3s_routes_have_ip_and_dns_certificates(self):
         resources = render("platform/routes/management-k3s")
         gateway = next(item for item in resources if item["kind"] == "Gateway")
@@ -148,6 +157,37 @@ class ConfigurationValidationTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("RUN_HELM_TESTS") == "1", "Set RUN_HELM_TESTS=1 to fetch and render pinned charts")
 class PinnedChartTests(unittest.TestCase):
+    def test_postgresql_security_context(self):
+        for cluster in ("management-k3s", "management-kind"):
+            with self.subTest(cluster=cluster):
+                source = applications(f"platform-overlays/{cluster}")["kyverno"]["spec"]["source"]
+                command = [
+                    "helm", "template", "kyverno", source["chart"],
+                    "--repo", source["repoURL"], "--version", source["targetRevision"],
+                    "--namespace", "kyverno",
+                ]
+                for parameter in source["helm"]["parameters"]:
+                    command += ["--set", f"{parameter['name']}={parameter['value']}"]
+                result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                stateful = next(item for item in yaml.safe_load_all(result.stdout)
+                                if item and item["kind"] == "StatefulSet"
+                                and item["metadata"]["name"] == "kyverno-postgresql")
+                pod = stateful["spec"]["template"]["spec"]
+                container = next(item for item in pod["containers"] if item["name"] == "postgresql")
+                security = container["securityContext"]
+                if cluster == "management-k3s":
+                    self.assertEqual(security["appArmorProfile"], {"type": "Unconfined"})
+                else:
+                    self.assertNotIn("appArmorProfile", security)
+                self.assertEqual(security["seccompProfile"], {"type": "RuntimeDefault"})
+                self.assertTrue(security["runAsNonRoot"])
+                self.assertFalse(security["privileged"])
+                self.assertFalse(security["allowPrivilegeEscalation"])
+                self.assertEqual(security["capabilities"]["drop"], ["ALL"])
+                self.assertTrue(stateful["spec"]["volumeClaimTemplates"])
+                self.assertNotIn("appArmorProfile", pod.get("securityContext", {}))
+
     def test_k3s_chart_outputs(self):
         cases = [("management-k3s", name) for name in (
             "kube-prometheus-stack", "loki", "alloy", "nginx-gateway",
