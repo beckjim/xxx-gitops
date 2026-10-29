@@ -175,6 +175,19 @@ The K3s profile retains all add-ons, not just a minimal K3s footprint:
   kubelet certificate/SAN trust; if your host configuration differs, fix trust
   or add an explicit, reviewed profile exception rather than weakening all
   distributions.
+- The generated NGINX Gateway data-plane container also uses AppArmor
+  `Unconfined` in this profile, through the chart's `nginx.patches` setting.
+  Ubuntu/containerd AppArmor stacking can block the NGINX agent's process
+  inspection and reload signals, leaving the Gateway `Programmed=False` with
+  `failed to reload NGINX permission denied`. The exception applies only to
+  the data-plane `nginx` container, not the Gateway controller. Non-root
+  execution, read-only root filesystem, dropped capabilities, disabled privilege
+  escalation and RuntimeDefault seccomp remain enabled. Revisit this exception
+  after the host/runtime issue is fixed; do not disable AppArmor globally.
+  If the new data-plane Pod is Ready and serves traffic but the Gateway retains
+  the old reload error, restart the `nginx-gateway-nginx-gateway-fabric`
+  controller Deployment in namespace `nginx-gateway` and verify
+  `Programmed=True`.
 
 Resource requests are initial single-node budgets, not proof the entire stack
 fits. Inspect allocatable memory/CPU, Kubescape's chart defaults, disk capacity,

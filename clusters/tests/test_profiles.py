@@ -157,6 +157,44 @@ class ConfigurationValidationTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("RUN_HELM_TESTS") == "1", "Set RUN_HELM_TESTS=1 to fetch and render pinned charts")
 class PinnedChartTests(unittest.TestCase):
+    def test_nginx_apparmor_exception_is_k3s_only(self):
+        for cluster in ("management-k3s", "management-kind", "management"):
+            with self.subTest(cluster=cluster), tempfile.TemporaryDirectory() as temp:
+                source = applications(f"platform-overlays/{cluster}")["nginx-gateway"]["spec"]["source"]
+                helm = source["helm"]
+                values = Path(temp) / "values.yaml"
+                values.write_text(helm.get("values", "{}"))
+                command = [
+                    "helm", "template", helm["releaseName"],
+                    f"oci://{source['repoURL']}/{source['chart']}",
+                    "--version", source["targetRevision"], "--namespace", "nginx-gateway",
+                    "--values", str(values),
+                ]
+                for parameter in helm["parameters"]:
+                    command += ["--set", f"{parameter['name']}={parameter['value']}"]
+                result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+                proxy = next(item for item in resources if item["kind"] == "NginxProxy")
+                patches = proxy["spec"]["kubernetes"]["deployment"].get("patches", [])
+                if cluster == "management-k3s":
+                    self.assertEqual(len(patches), 1)
+                    self.assertEqual(patches[0]["type"], "StrategicMerge")
+                    patch_value = patches[0]["value"]
+                    self.assertEqual(patch_value, {"spec": {"template": {"spec": {
+                        "containers": [{"name": "nginx", "securityContext": {
+                            "appArmorProfile": {"type": "Unconfined"},
+                        }}],
+                    }}}})
+                    self.assertEqual(proxy["spec"]["kubernetes"]["service"]["type"], "LoadBalancer")
+                else:
+                    self.assertEqual(patches, [])
+                controller = next(item for item in resources if item["kind"] == "Deployment")
+                pod = controller["spec"]["template"]["spec"]
+                self.assertNotIn("appArmorProfile", pod.get("securityContext", {}))
+                for container in pod["containers"]:
+                    self.assertNotIn("appArmorProfile", container.get("securityContext", {}))
+
     def test_postgresql_security_context(self):
         for cluster in ("management-k3s", "management-kind"):
             with self.subTest(cluster=cluster):

@@ -13,6 +13,28 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+  name: nginx-gateway
+  namespace: argocd
+spec:
+  source:
+    helm:
+      values: |
+        nginx:
+          patches:
+            - type: StrategicMerge
+              value:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: nginx
+                          securityContext:
+                            appArmorProfile:
+                              type: Unconfined
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
   name: kubescape
   namespace: argocd
 spec:
