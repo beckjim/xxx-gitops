@@ -2,9 +2,9 @@
   "profile": "k3s-lan",
   "environment": "management",
   "context": "management-k3s",
-  "nodeAddress": "REPLACE_ME_NODE_IP",
-  "gatewayAddress": "REPLACE_ME_GATEWAY_IP",
-  "platformFqdn": "REPLACE_ME_PLATFORM_FQDN",
-  "argocdFqdn": "REPLACE_ME_ARGOCD_FQDN",
-  "pool": "REPLACE_ME_RESERVED_LAN_RANGE"
+  "nodeAddress": "192.168.2.100",
+  "gatewayAddress": "192.168.2.80",
+  "platformFqdn": "gw.fritz.box",
+  "argocdFqdn": "k8s.fritz.box",
+  "pool": "192.168.2.80-192.168.2.99"
 }

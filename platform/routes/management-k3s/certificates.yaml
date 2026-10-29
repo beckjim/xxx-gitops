@@ -40,9 +40,9 @@ metadata:
 spec:
   secretName: platform-tls
   dnsNames:
-    - REPLACE_ME_PLATFORM_FQDN
+    - gw.fritz.box
   ipAddresses:
-    - REPLACE_ME_GATEWAY_IP
+    - 192.168.2.80
   issuerRef:
     name: platform-ca
     kind: ClusterIssuer
@@ -55,9 +55,9 @@ metadata:
 spec:
   secretName: argocd-server-tls
   dnsNames:
-    - REPLACE_ME_ARGOCD_FQDN
+    - k8s.fritz.box
   ipAddresses:
-    - REPLACE_ME_NODE_IP
+    - 192.168.2.100
   issuerRef:
     name: platform-ca
     kind: ClusterIssuer

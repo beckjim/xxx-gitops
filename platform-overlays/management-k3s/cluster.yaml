@@ -12,7 +12,7 @@ spec:
         - name: nginx.service.type
           value: LoadBalancer
         - name: nginx.service.loadBalancerIP
-          value: REPLACE_ME_GATEWAY_IP
+          value: 192.168.2.80
         - name: nginx.service.nodePorts[0].listenerPort
           value: "80"
         - name: nginx.service.nodePorts[0].port
