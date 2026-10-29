@@ -189,6 +189,17 @@ The K3s profile retains all add-ons, not just a minimal K3s footprint:
   controller Deployment in namespace `nginx-gateway` and verify
   `Programmed=True`.
 
+- MetalLB disables the unused FRR-K8s BGP backend (`frrk8s.enabled=false`) in
+  this L2-only profile. This removes its failing reload loop without another
+  AppArmor exception. IP pools and L2 advertisement remain unchanged. Enabling
+  BGP later requires explicitly re-enabling/configuring its backend and resolving
+  the host/runtime signal denials first.
+- Policy Reporter's main container uses AppArmor `Unconfined` after observed
+  denials of its runtime's internal signals. Its UI and other containers retain
+  their defaults; non-root execution, read-only root filesystem, dropped
+  capabilities and RuntimeDefault seccomp remain enabled. As with the exceptions
+  above, revisit this after fixing the host/runtime AppArmor stacking issue.
+
 Resource requests are initial single-node budgets, not proof the entire stack
 fits. Inspect allocatable memory/CPU, Kubescape's chart defaults, disk capacity,
 host kernel/BTF support and privileged workload policies before rollout.

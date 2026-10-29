@@ -35,6 +35,30 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+  name: metallb
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: frrk8s.enabled
+          value: "false"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: policy-reporter
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: securityContext.appArmorProfile.type
+          value: Unconfined
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
   name: kubescape
   namespace: argocd
 spec:

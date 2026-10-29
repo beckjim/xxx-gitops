@@ -157,6 +157,47 @@ class ConfigurationValidationTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("RUN_HELM_TESTS") == "1", "Set RUN_HELM_TESTS=1 to fetch and render pinned charts")
 class PinnedChartTests(unittest.TestCase):
+    def test_remaining_apparmor_fixes_are_k3s_only(self):
+        for cluster in ("management-k3s", "management-kind"):
+            for name in ("metallb", "policy-reporter"):
+                with self.subTest(cluster=cluster, chart=name), tempfile.TemporaryDirectory() as temp:
+                    source = applications(f"platform-overlays/{cluster}")[name]["spec"]["source"]
+                    helm = source["helm"]
+                    values = Path(temp) / "values.yaml"
+                    values.write_text(helm.get("values", "{}"))
+                    command = [
+                        "helm", "template", helm["releaseName"], source["chart"],
+                        "--repo", source["repoURL"], "--version", source["targetRevision"],
+                        "--namespace", "metallb-system" if name == "metallb" else "kyverno",
+                        "--values", str(values),
+                    ]
+                    for parameter in helm.get("parameters", []):
+                        command += ["--set", f"{parameter['name']}={parameter['value']}"]
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+                    if name == "metallb":
+                        workloads = {item["metadata"]["name"] for item in resources
+                                     if item["kind"] in ("DaemonSet", "Deployment")}
+                        self.assertIn("metallb-controller", workloads)
+                        self.assertIn("metallb-speaker", workloads)
+                        self.assertEqual("metallb-frr-k8s" in workloads, cluster != "management-k3s")
+                    else:
+                        for item in resources:
+                            if item["kind"] != "Deployment":
+                                continue
+                            for container in item["spec"]["template"]["spec"]["containers"]:
+                                security = container.get("securityContext", {})
+                                if cluster == "management-k3s" and container["name"] == "policy-reporter":
+                                    self.assertEqual(security["appArmorProfile"], {"type": "Unconfined"})
+                                    self.assertTrue(security["runAsNonRoot"])
+                                    self.assertTrue(security["readOnlyRootFilesystem"])
+                                    self.assertFalse(security["allowPrivilegeEscalation"])
+                                    self.assertEqual(security["capabilities"]["drop"], ["ALL"])
+                                    self.assertEqual(security["seccompProfile"], {"type": "RuntimeDefault"})
+                                else:
+                                    self.assertNotIn("appArmorProfile", security)
+
     def test_nginx_apparmor_exception_is_k3s_only(self):
         for cluster in ("management-k3s", "management-kind", "management"):
             with self.subTest(cluster=cluster), tempfile.TemporaryDirectory() as temp:
