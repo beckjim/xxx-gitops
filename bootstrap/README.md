@@ -78,10 +78,14 @@ Examples:
 
 ```bash
 ./bootstrap/bootstrap-cluster.sh dev
-./bootstrap/bootstrap-cluster.sh management
 ./bootstrap/bootstrap-cluster.sh test
 ./bootstrap/bootstrap-cluster.sh prod
 ```
+
+The helper assumes `kind-`-prefixed contexts. For the `management` context
+created by [setup-mgmt.sh](../clusters/setup-mgmt.sh), use the explicit management
+bootstrap commands in [Cluster Helpers](../clusters/README.md#credentials-and-gitops-follow-up)
+instead, for both kind and K3s.
 
 For production-like contexts, the helper asks for explicit confirmation.
 Use `--yes` for non-interactive automation when appropriate.
