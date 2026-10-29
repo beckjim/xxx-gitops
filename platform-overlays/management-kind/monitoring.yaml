@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: deploymentMode
+          value: SingleBinary
+        - name: singleBinary.service.type
+          value: ClusterIP
+        - name: singleBinary.service.nodePort
+          value: "null"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: grafana.additionalDataSources[0].name
+          value: Loki
+        - name: grafana.additionalDataSources[0].type
+          value: loki
+        - name: grafana.additionalDataSources[0].access
+          value: proxy
+        - name: grafana.additionalDataSources[0].url
+          value: http://loki.monitoring.svc.cluster.local:3100
+        - name: grafana.additionalDataSources[0].isDefault
+          value: "false"

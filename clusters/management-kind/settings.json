@@ -1,0 +1,5 @@
+{
+  "profile": "kind",
+  "environment": "management",
+  "context": "management-kind"
+}

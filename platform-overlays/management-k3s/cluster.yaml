@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-gateway
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: nginxGateway.gatewayClassName
+          value: platform-nginx
+        - name: nginx.service.type
+          value: LoadBalancer
+        - name: nginx.service.loadBalancerIP
+          value: REPLACE_ME_GATEWAY_IP
+        - name: nginx.service.nodePorts[0].listenerPort
+          value: "80"
+        - name: nginx.service.nodePorts[0].port
+          value: "30080"
+        - name: nginx.service.nodePorts[1].listenerPort
+          value: "443"
+        - name: nginx.service.nodePorts[1].port
+          value: "30443"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-routes
+  namespace: argocd
+spec:
+  source:
+    path: platform/routes/management-k3s

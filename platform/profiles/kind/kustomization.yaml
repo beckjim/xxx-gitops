@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../metallb
+patches:
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: metrics-server
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/parameters
+        value:
+          - name: args[0]
+            value: --kubelet-insecure-tls
+          - name: args[1]
+            value: --kubelet-preferred-address-types=InternalIP,Hostname,InternalDNS

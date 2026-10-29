@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - certificates.yaml
+  - trust.yaml
+patches:
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1
+      kind: Gateway
+      name: platform-gateway
+    patch: |-
+      - op: replace
+        path: /spec/listeners
+        value:
+          - name: https
+            protocol: HTTPS
+            port: 443
+            tls:
+              mode: Terminate
+              certificateRefs:
+                - name: platform-tls
+            allowedRoutes:
+              namespaces:
+                from: All
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1
+      kind: HTTPRoute
+    patch: |-
+      - op: remove
+        path: /spec/hostnames
+      - op: add
+        path: /spec/parentRefs/0/sectionName
+        value: https

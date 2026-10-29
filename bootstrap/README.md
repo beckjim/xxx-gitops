@@ -71,7 +71,7 @@ The same root app then reconciles environment-specific content from Git as your 
 For one-command onboarding, use:
 
 ```bash
-./bootstrap/bootstrap-cluster.sh <kube-context>
+./bootstrap/bootstrap-cluster.sh <cluster-id> [--context name]
 ```
 
 Examples:
@@ -82,10 +82,20 @@ Examples:
 ./bootstrap/bootstrap-cluster.sh prod
 ```
 
-The helper assumes `kind-`-prefixed contexts. For the `management` context
-created by [setup-mgmt.sh](../clusters/setup-mgmt.sh), use the explicit management
-bootstrap commands in [Cluster Helpers](../clusters/README.md#credentials-and-gitops-follow-up)
-instead, for both kind and K3s.
+New clusters use unique IDs such as `management-kind` and `management-k3s`.
+The helper selects `bootstrap/apps/<cluster-id>` exactly, validates configured
+profiles, and passes the context explicitly without changing your current context.
+For compatibility, the existing `dev`, `staging`, and `prod` IDs retain their
+`kind-` context defaults. Unknown IDs do not fall back to a generic source.
+
+```bash
+bash bootstrap/bootstrap-cluster.sh management-kind
+bash bootstrap/bootstrap-cluster.sh management-k3s
+```
+
+The K3s overlay is a deployment-blocked template until its LAN/DNS inputs are
+configured. See [Cluster Profiles](../clusters/PROFILES.md) for composition,
+prerequisites, controller ownership, and a staged rollout.
 
 For production-like contexts, the helper asks for explicit confirmation.
 Use `--yes` for non-interactive automation when appropriate.

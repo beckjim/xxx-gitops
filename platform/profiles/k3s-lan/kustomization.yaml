@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ../../metallb
+  - ../../alloy
+patches:
+  - path: monitoring.yaml
+  - path: runtime.yaml
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: metrics-server
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/parameters
+        value:
+          - name: args[0]
+            value: --kubelet-preferred-address-types=InternalIP,Hostname,InternalDNS
+          - name: resources.requests.cpu
+            value: 100m
+          - name: resources.requests.memory
+            value: 128Mi

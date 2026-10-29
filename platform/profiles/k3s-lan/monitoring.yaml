@@ -1,0 +1,106 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: kubeEtcd.enabled
+          value: "false"
+        - name: kubeScheduler.enabled
+          value: "false"
+        - name: kubeControllerManager.enabled
+          value: "false"
+        - name: kubeProxy.enabled
+          value: "false"
+        - name: defaultRules.rules.etcd
+          value: "false"
+        - name: defaultRules.rules.kubeSchedulerAlerting
+          value: "false"
+        - name: defaultRules.rules.kubeSchedulerRecording
+          value: "false"
+        - name: defaultRules.rules.kubeControllerManager
+          value: "false"
+        - name: defaultRules.rules.kubeProxy
+          value: "false"
+        - name: prometheus.prometheusSpec.replicas
+          value: "1"
+        - name: prometheus.prometheusSpec.retention
+          value: 7d
+        - name: prometheus.prometheusSpec.retentionSize
+          value: 8GB
+        - name: prometheus.prometheusSpec.resources.requests.cpu
+          value: 250m
+        - name: prometheus.prometheusSpec.resources.requests.memory
+          value: 512Mi
+        - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName
+          value: local-path
+        - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]
+          value: ReadWriteOnce
+        - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage
+          value: 10Gi
+        - name: grafana.persistence.enabled
+          value: "true"
+        - name: grafana.admin.existingSecret
+          value: grafana-admin
+        - name: grafana.persistence.storageClassName
+          value: local-path
+        - name: grafana.persistence.size
+          value: 1Gi
+        - name: grafana.resources.requests.cpu
+          value: 100m
+        - name: grafana.resources.requests.memory
+          value: 128Mi
+        - name: grafana.additionalDataSources[0].name
+          value: Loki
+        - name: grafana.additionalDataSources[0].type
+          value: loki
+        - name: grafana.additionalDataSources[0].access
+          value: proxy
+        - name: grafana.additionalDataSources[0].url
+          value: http://loki.monitoring.svc.cluster.local:3100
+        - name: grafana.additionalDataSources[0].isDefault
+          value: "false"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: deploymentMode
+          value: SingleBinary
+        - name: loki.useTestSchema
+          value: "false"
+        - name: loki.schemaConfig.configs[0].from
+          value: "2024-01-01"
+          forceString: true
+        - name: loki.schemaConfig.configs[0].store
+          value: tsdb
+        - name: loki.schemaConfig.configs[0].object_store
+          value: filesystem
+        - name: loki.schemaConfig.configs[0].schema
+          value: v13
+        - name: loki.schemaConfig.configs[0].index.prefix
+          value: loki_index_
+        - name: loki.schemaConfig.configs[0].index.period
+          value: 24h
+        - name: singleBinary.persistence.enabled
+          value: "true"
+        - name: singleBinary.persistence.storageClass
+          value: local-path
+        - name: singleBinary.persistence.size
+          value: 10Gi
+        - name: singleBinary.service.type
+          value: ClusterIP
+        - name: singleBinary.service.nodePort
+          value: "null"
+        - name: lokiCanary.enabled
+          value: "false"
+        - name: test.enabled
+          value: "false"

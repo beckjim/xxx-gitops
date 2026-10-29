@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inspektor-gadget
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: config.containerdSocketPath
+          value: /run/k3s/containerd/containerd.sock
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubescape
+  namespace: argocd
+spec:
+  source:
+    helm:
+      parameters:
+        - name: clusterName
+          value: REPLACE_ME_CLUSTER_ID
+        - name: ksNamespace
+          value: kubescape
+        - name: global.overrideRuntimePath
+          value: /host/var/lib/rancher/k3s/data/current/bin/runc
