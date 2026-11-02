@@ -45,10 +45,12 @@ class ProfileTests(unittest.TestCase):
                 self.assertEqual(set(applications(f"platform-overlays/{name}")), expected)
         self.assertEqual(set(applications("platform-overlays/management-kind")), expected | {"alloy"})
 
-    def test_k3s_keeps_all_addons_and_adds_collector(self):
+    def test_k3s_keeps_all_addons_and_adds_collector_and_gpu(self):
         legacy = applications("platform-overlays/management")
         k3s = applications("platform-overlays/management-k3s")
-        self.assertEqual(set(k3s), set(legacy) | {"alloy"})
+        self.assertEqual(set(k3s), set(legacy) | {
+            "alloy", "node-feature-discovery", "intel-gpu-plugin",
+        })
         self.assertEqual(k3s["loki"]["spec"]["source"]["helm"]["values"],
                          legacy["loki"]["spec"]["source"]["helm"]["values"])
         self.assertEqual(k3s["kube-prometheus-stack"]["spec"]["source"]["helm"]["values"],
@@ -63,6 +65,111 @@ class ProfileTests(unittest.TestCase):
                        "value": "/run/k3s/containerd/containerd.sock"}, gadget)
         params = apps["kubescape"]["spec"]["source"]["helm"]["parameters"]
         self.assertIn({"name": "clusterName", "value": "management-k3s"}, params)
+
+    def test_gpu_applications_are_k3s_only_and_ordered(self):
+        names = {"node-feature-discovery", "intel-gpu-plugin"}
+        for cluster in ("management", "management-kind", "dev", "staging", "prod"):
+            with self.subTest(cluster=cluster):
+                self.assertTrue(names.isdisjoint(applications(f"platform-overlays/{cluster}")))
+        apps = applications("platform-overlays/management-k3s")
+        nfd, gpu = (apps[name] for name in ("node-feature-discovery", "intel-gpu-plugin"))
+        self.assertLess(int(nfd["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]),
+                        int(gpu["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]))
+        for app, namespace in ((nfd, "node-feature-discovery"), (gpu, "intel-device-plugins")):
+            self.assertEqual(app["spec"]["project"], "platform-admins")
+            self.assertEqual(app["spec"]["destination"], {
+                "server": "https://kubernetes.default.svc", "namespace": namespace,
+            })
+            self.assertEqual(app["spec"]["syncPolicy"]["automated"], {"prune": True, "selfHeal": True})
+        source = nfd["spec"]["source"]
+        self.assertEqual(source["repoURL"], "https://github.com/kubernetes-sigs/node-feature-discovery.git")
+        self.assertEqual(source["targetRevision"], "v0.20.1")
+        self.assertEqual(source["path"], "deployment/helm/node-feature-discovery")
+        project = yaml.safe_load((ROOT / "projects/platform.yaml").read_text())
+        self.assertIn(source["repoURL"], project["spec"]["sourceRepos"])
+        self.assertIn(gpu["spec"]["source"]["repoURL"], project["spec"]["sourceRepos"])
+        self.assertEqual(gpu["spec"]["source"]["path"], "platform/intel-gpu-plugin/resources")
+        values = yaml.safe_load(source["helm"]["values"])
+        self.assertEqual(values["master"]["extraLabelNs"], ["intel.feature.node.kubernetes.io"])
+        self.assertFalse(values["master"]["enableTaints"])
+        self.assertFalse(values["topologyUpdater"]["enable"])
+        self.assertFalse(values["postDeleteCleanup"])
+        self.assertEqual(values["worker"]["config"]["core"], {
+            "featureSources": ["pci", "kernel"], "labelSources": [],
+        })
+        self.assertEqual(values["worker"]["config"]["sources"]["pci"]["deviceClassWhitelist"], ["03"])
+
+    def test_gpu_rule_matches_only_intel_display_with_enabled_driver(self):
+        rule = yaml.safe_load((ROOT / "platform/intel-gpu-plugin/resources/node-feature-rule.yaml").read_text())
+        self.assertEqual(rule["kind"], "NodeFeatureRule")
+        self.assertEqual(rule["apiVersion"], "nfd.k8s-sigs.io/v1alpha1")
+        self.assertEqual(len(rule["spec"]["rules"]), 1)
+        gpu = rule["spec"]["rules"][0]
+        self.assertEqual(gpu["labels"], {"intel.feature.node.kubernetes.io/gpu": "true"})
+        self.assertEqual(gpu["matchFeatures"], [
+            {"feature": "pci.device", "matchExpressions": {
+                "vendor": {"op": "In", "value": ["8086"]},
+                "class": {"op": "In", "value": ["0300", "0380"]},
+            }},
+            {"feature": "kernel.enabledmodule", "matchName": {"op": "In", "value": ["i915", "xe"]}},
+        ])
+        pci, kernel = gpu["matchFeatures"]
+        for vendor, pci_class, modules, expected in (
+            ("8086", "0300", {"i915"}, True),
+            ("8086", "0380", {"xe"}, True),
+            ("10de", "0300", {"i915"}, False),
+            ("8086", "0200", {"i915"}, False),
+            ("8086", "0300", set(), False),
+            ("8086", "0300", {"nouveau"}, False),
+        ):
+            with self.subTest(vendor=vendor, pci_class=pci_class, modules=modules):
+                fields = {"vendor": vendor, "class": pci_class}
+                matches = (all(fields[key] in condition["value"]
+                               for key, condition in pci["matchExpressions"].items())
+                           and bool(modules.intersection(kernel["matchName"]["value"])))
+                self.assertEqual(matches, expected)
+
+    def test_gpu_daemonset_uses_nfd_and_exclusive_allocation(self):
+        resources = render("platform/intel-gpu-plugin/resources")
+        self.assertEqual({item["kind"] for item in resources}, {"NodeFeatureRule", "DaemonSet"})
+        ds = next(item for item in resources if item["kind"] == "DaemonSet")
+        rule = next(item for item in resources if item["kind"] == "NodeFeatureRule")
+        self.assertNotIn("namespace", rule["metadata"])
+        self.assertLess(int(rule["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]),
+                        int(ds["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]))
+        self.assertEqual(ds["metadata"]["namespace"], "intel-device-plugins")
+        pod = ds["spec"]["template"]["spec"]
+        self.assertEqual(pod["nodeSelector"], {
+            "kubernetes.io/arch": "amd64", "kubernetes.io/os": "linux",
+            "intel.feature.node.kubernetes.io/gpu": "true",
+        })
+        self.assertFalse(pod["automountServiceAccountToken"])
+        self.assertFalse(pod.get("initContainers"))
+        self.assertEqual(len(pod["containers"]), 1)
+        container = pod["containers"][0]
+        self.assertEqual(container["args"], ["-shared-dev-num=1", "-v=2"])
+        self.assertEqual(container["image"], "intel/intel-gpu-plugin:0.37.1@sha256:"
+                         "004641b2547d58f1eadce58473fa160ad71377de1eb588cf1f82832387bf3e33")
+        security = container["securityContext"]
+        self.assertFalse(security.get("privileged", False))
+        self.assertFalse(security["allowPrivilegeEscalation"])
+        self.assertTrue(security["readOnlyRootFilesystem"])
+        self.assertEqual(security["capabilities"]["drop"], ["ALL"])
+        self.assertEqual(security["seccompProfile"], {"type": "RuntimeDefault"})
+        self.assertNotIn("appArmorProfile", security)
+        self.assertEqual(container["resources"], {
+            "requests": {"memory": "45Mi", "cpu": "40m"},
+            "limits": {"memory": "115Mi", "cpu": "100m"},
+        })
+        mounts = {item["name"]: item for item in container["volumeMounts"]}
+        volumes = {item["name"]: item["hostPath"] for item in pod["volumes"]}
+        for name, path in (("devfs", "/dev/dri"), ("sysfsdrm", "/sys/class/drm"),
+                           ("kubeletsockets", "/var/lib/kubelet/device-plugins")):
+            self.assertEqual(volumes[name], {"path": path, "type": "Directory"})
+            self.assertEqual(mounts[name]["mountPath"], path)
+        self.assertTrue(mounts["devfs"]["readOnly"])
+        self.assertTrue(mounts["sysfsdrm"]["readOnly"])
+        self.assertEqual(volumes["cdipath"], {"path": "/var/run/cdi", "type": "DirectoryOrCreate"})
 
     def test_postgresql_apparmor_exception_is_k3s_only(self):
         parameter = "reports-server.postgresql.primary.containerSecurityContext.appArmorProfile.type"
@@ -157,6 +264,68 @@ class ConfigurationValidationTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("RUN_HELM_TESTS") == "1", "Set RUN_HELM_TESTS=1 to fetch and render pinned charts")
 class PinnedChartTests(unittest.TestCase):
+    def test_nfd_gpu_discovery_chart(self):
+        app = applications("platform-overlays/management-k3s")["node-feature-discovery"]
+        source = app["spec"]["source"]
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "nfd"
+            subprocess.run(
+                ["git", "clone", "--depth", "1", "--filter=blob:none", "--sparse",
+                 "--branch", source["targetRevision"], source["repoURL"], str(repo)],
+                check=True, capture_output=True, text=True, timeout=300,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "sparse-checkout", "set", source["path"]],
+                check=True, capture_output=True, text=True, timeout=300,
+            )
+            values = Path(temp) / "values.yaml"
+            values.write_text(source["helm"]["values"])
+            result = subprocess.run(
+                ["helm", "template", source["helm"]["releaseName"], str(repo / source["path"]),
+                 "--namespace", app["spec"]["destination"]["namespace"],
+                 "--include-crds", "--values", str(values)],
+                capture_output=True, text=True, timeout=300,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+            crds = {item["metadata"]["name"] for item in resources
+                    if item["kind"] == "CustomResourceDefinition"}
+            self.assertIn("nodefeatures.nfd.k8s-sigs.io", crds)
+            self.assertIn("nodefeaturerules.nfd.k8s-sigs.io", crds)
+            workloads = {item["metadata"]["name"]: item for item in resources
+                         if item["kind"] in ("DaemonSet", "Deployment")}
+            self.assertEqual(set(workloads), {
+                "node-feature-discovery-master", "node-feature-discovery-worker",
+                "node-feature-discovery-gc",
+            })
+            self.assertFalse(any(item["kind"] == "Job" for item in resources))
+            for name, workload in workloads.items():
+                pod = workload["spec"]["template"]["spec"]
+                for container in pod["containers"]:
+                    self.assertEqual(container["image"], "registry.k8s.io/nfd/node-feature-discovery:v0.20.1")
+                    security = container["securityContext"]
+                    self.assertFalse(security.get("privileged", False))
+                    self.assertFalse(security["allowPrivilegeEscalation"])
+                    self.assertTrue(security["readOnlyRootFilesystem"])
+                    self.assertTrue(security["runAsNonRoot"])
+                    self.assertEqual(security["capabilities"]["drop"], ["ALL"])
+                    self.assertEqual(security["seccompProfile"], {"type": "RuntimeDefault"})
+                    self.assertIn("memory", container["resources"]["limits"])
+                if name.endswith("-worker"):
+                    self.assertEqual(pod["nodeSelector"]["kubernetes.io/os"], "linux")
+                    for mount in pod["containers"][0]["volumeMounts"]:
+                        if mount["name"].startswith("host-"):
+                            self.assertTrue(mount["readOnly"])
+                if name.endswith("-master"):
+                    self.assertIn("-extra-label-ns=intel.feature.node.kubernetes.io",
+                                  pod["containers"][0]["args"])
+            configs = [item for item in resources if item["kind"] == "ConfigMap"]
+            worker = next(item for item in configs if item["metadata"]["name"].endswith("-worker-conf"))
+            config = yaml.safe_load(worker["data"]["nfd-worker.conf"])
+            self.assertEqual(config["core"]["featureSources"], ["pci", "kernel"])
+            self.assertEqual(config["core"]["labelSources"], [])
+            self.assertEqual(config["sources"]["pci"]["deviceClassWhitelist"], ["03"])
+
     def test_remaining_apparmor_fixes_are_k3s_only(self):
         for cluster in ("management-k3s", "management-kind"):
             for name in ("metallb", "policy-reporter"):

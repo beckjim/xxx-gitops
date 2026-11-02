@@ -8,6 +8,7 @@ spec:
   sourceRepos:
     - https://github.com/beckjim/xxx-gitops
     - https://github.com/headlamp-k8s/headlamp.git
+    - https://github.com/kubernetes-sigs/node-feature-discovery.git
     - https://charts.jetstack.io
     - https://grafana.github.io/helm-charts
     - https://inspektor-gadget.github.io/charts/

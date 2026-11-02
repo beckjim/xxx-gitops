@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: intel-gpu-plugin
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+        intel.feature.node.kubernetes.io/gpu: "true"
+      containers:
+        - name: intel-gpu-plugin
+          args:
+            - "-shared-dev-num=1"
+            - "-v=2"
+      volumes:
+        - name: devfs
+          hostPath:
+            path: /dev/dri
+            type: Directory
+        - name: sysfsdrm
+          hostPath:
+            path: /sys/class/drm
+            type: Directory
+        - name: kubeletsockets
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory

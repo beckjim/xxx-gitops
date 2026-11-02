@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: intel-gpu-plugin
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://github.com/beckjim/xxx-gitops
+    targetRevision: main
+    path: platform/intel-gpu-plugin/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: intel-device-plugins
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,76 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: node-feature-discovery
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: platform-admins
+  source:
+    repoURL: https://github.com/kubernetes-sigs/node-feature-discovery.git
+    targetRevision: v0.20.1
+    path: deployment/helm/node-feature-discovery
+    helm:
+      releaseName: node-feature-discovery
+      values: |
+        postDeleteCleanup: false
+        master:
+          extraLabelNs:
+            - intel.feature.node.kubernetes.io
+          enableTaints: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+        worker:
+          nodeSelector:
+            kubernetes.io/os: linux
+          config:
+            core:
+              featureSources:
+                - pci
+                - kernel
+              labelSources: []
+            sources:
+              pci:
+                deviceClassWhitelist:
+                  - "03"
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 5m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+        topologyUpdater:
+          enable: false
+        gc:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: node-feature-discovery
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

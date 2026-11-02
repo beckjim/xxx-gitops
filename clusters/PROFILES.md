@@ -15,6 +15,8 @@ kubeconfig, context, bootstrap root and platform overlay.
 - `platform/profiles/k3s-lan` adds MetalLB and Alloy, plus K3s metrics, runtime,
   monitoring and persistence parameters.
 - `platform-overlays/<cluster-id>` supplies concrete per-cluster settings.
+  The `management-k3s` overlay additionally selects NFD and the Intel GPU device
+  plugin; neither is added to the shared base or other cluster overlays.
 - `bootstrap/apps/<cluster-id>` selects that exact overlay.
 - `clusters/<cluster-id>/settings.json` records identity and expected network
   settings. Validation checks these against the actual manifests.
@@ -212,6 +214,187 @@ Loki's filesystem has no object-store lifecycle policy here; monitor disk growth
 and configure a tested retention/deletion policy before sustained ingestion.
 Alloy positions default to ephemeral storage and restarts can reread recent
 files; its log collection is not a guaranteed exactly-once archival pipeline.
+
+## Intel GPU allocation with NFD (management-k3s only)
+
+The native K3s overlay adds two Argo CD Applications:
+
+- `node-feature-discovery`: official NFD Git chart at `v0.20.1`, namespace
+  `node-feature-discovery`, sync wave 2.
+- `intel-gpu-plugin`: standalone Intel device-plugin manifests at `v0.37.1`,
+  namespace `intel-device-plugins`, sync wave 3. The AMD64 image is digest-pinned.
+
+The Intel device-plugin operator is not installed. NFD publishes PCI/kernel
+features; a cluster-scoped GPU-only `NodeFeatureRule` matches Intel display
+devices (vendor `8086`, classes `0300`/`0380`) with `i915` or `xe` enabled.
+It produces `intel.feature.node.kubernetes.io/gpu=true`, which selects the
+Linux/AMD64 GPU DaemonSet. Do not label nodes manually. The rule has no namespace
+and is applied before the DaemonSet inside the GPU Application. Existing nested
+Application health handling must be enabled so NFD, including its CRDs, is ready
+before the GPU child syncs.
+
+Discovery is limited to PCI/kernel sources. NFD node tainting, topology updater
+and the Helm post-delete cleanup hook are disabled; the NFD garbage collector
+remains enabled. The custom Intel label namespace is explicitly allowed.
+NFD containers retain non-root, read-only filesystem, dropped-capability and
+RuntimeDefault seccomp settings. No API credentials are mounted in the GPU
+plugin Pod. The plugin itself runs as root for host device/socket access, but
+not privileged; its root filesystem is read-only and privilege escalation is
+disabled. Required hostPath access is an infrastructure exception, not permission
+to grant workload Pods privileged mode. No broad admission-policy or AppArmor
+exceptions are introduced.
+
+### Host prerequisites and rollout gate
+
+Read-only inspection of the current native host found an Intel **HD Graphics
+520 (Skylake-U, `8086:1916`)**, using the upstream `i915` driver, with
+`/dev/dri/card1` and `/dev/dri/renderD128`. Do not assume `card0` exists.
+The host runs Ubuntu 26.04.1 / Linux 7.0.0-42-generic; K3s reports Kubernetes
+v1.37.1+k3s1 and containerd 2.3.4-k3s1. Discovery/registration on this combination
+still needs post-deployment verification; the manifests do not install firmware
+or kernel/user-space GPU drivers.
+
+**Before deploying**, an administrator must confirm the real kubelet
+device-plugin socket path on the host. The directory is root-protected and was
+not inspectable by this session:
+
+```bash
+sudo test -S /var/lib/kubelet/device-plugins/kubelet.sock
+sudo ls -l /var/lib/kubelet/device-plugins/kubelet.sock
+```
+
+The first command must succeed. If K3s uses a custom kubelet root, confirm it
+from the service's kubelet arguments and update the `kubeletsockets` hostPath in
+`platform/intel-gpu-plugin/resources/daemonset.yaml` before syncing. The plugin's
+container-side registration path remains `/var/lib/kubelet/device-plugins`.
+Never create an empty host directory or relax host permissions to hide a wrong
+socket path. DRM/sysfs/kubelet volumes deliberately require existing directories.
+
+Apply the updated AppProject through its existing bootstrap ownership before
+syncing, so it allows the official NFD Git chart source. Commit/push the reviewed
+configuration to the Applications' tracked revision through the normal workflow;
+local files are not visible to Argo CD. Do not install a second NFD instance.
+
+### Verify after Argo CD deployment
+
+These are read-only checks, using the intended context explicitly:
+
+```bash
+kubectl --context management-k3s -n argocd get applications node-feature-discovery intel-gpu-plugin
+kubectl --context management-k3s -n node-feature-discovery get deployments,daemonsets,pods
+kubectl --context management-k3s get nodefeaturerule intel-gpu
+kubectl --context management-k3s get nodes \
+  -L intel.feature.node.kubernetes.io/gpu
+kubectl --context management-k3s -n intel-device-plugins get daemonset intel-gpu-plugin
+kubectl --context management-k3s -n intel-device-plugins logs daemonset/intel-gpu-plugin --tail=100
+kubectl --context management-k3s get node management-k3s \
+  -o jsonpath='{.status.capacity.gpu\.intel\.com/i915}{" "}{.status.allocatable.gpu\.intel\.com/i915}{"\n"}'
+```
+
+Expect both Applications `Synced/Healthy`, healthy NFD workloads, the Intel label
+`true`, and **one desired/ready GPU plugin Pod** on this host. A DaemonSet showing
+zero desired Pods is not a successful GPU installation. Capacity and allocatable
+should both be **1** for `gpu.intel.com/i915`; `xe` hardware would instead expose
+`gpu.intel.com/xe`. Allocatable is the total schedulable inventory, not the current
+number of free allocations; inspect allocated resources/Pods for current usage.
+Allow an NFD scan and kubelet registration interval before diagnosing missing
+resources.
+
+If labels are absent, inspect NFD worker/master logs, NodeFeature objects, the
+rule and the custom-label allowlist. If labels exist but resources do not,
+inspect plugin logs/Pod events, the real kubelet socket and DRM device/driver
+availability. Resolve policy/host-access errors narrowly; do not enable
+privileged mode, disable AppArmor or chmod DRM devices as a generic workaround.
+
+### Workload requests and optional smoke test
+
+Consumers request `gpu.intel.com/i915: 1` as an extended-resource limit.
+`-shared-dev-num=1` allows only one consuming container per GPU; monitoring
+resources, sharing and health sidecars are not enabled. Host desktop processes
+can still use the same physical GPU: this is Kubernetes allocation exclusivity,
+not isolation from the host or a dedicated GPU partition.
+
+The following optional Pod verifies scheduling and device visibility only, not
+GPU computation. It is documentation, not a GitOps-managed workload. Save it
+separately and apply it only when ready to consume the node's single allocation.
+The BusyBox image is version/digest-pinned and has no GPU userspace drivers:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: intel-gpu-smoke
+  namespace: default
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: check
+      image: busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+      command: [sh, -ec, "ls -l /dev/dri; test -c /dev/dri/renderD128"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 8Mi
+        limits:
+          memory: 16Mi
+          gpu.intel.com/i915: 1
+```
+
+This example intentionally checks this host's observed render device. A real
+compute/transcode test additionally needs a pinned workload image with
+Skylake-compatible userspace drivers and its own functional GPU operation.
+Modern Level Zero/OpenVINO support is not implied by successful allocation.
+For non-root device access, discover the actual host `render`/`video` GIDs and
+configure the workload's supplemental groups if needed; do not assume portable
+numeric GIDs. Workloads should not manually mount `/dev/dri` or run privileged.
+
+After an explicitly approved smoke test, read logs and remove only that Pod:
+
+```bash
+kubectl --context management-k3s -n default logs intel-gpu-smoke
+kubectl --context management-k3s -n default delete pod intel-gpu-smoke
+```
+
+### Validation and rollback
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
+  clusters.tests.test_profiles.ProfileTests.test_gpu_applications_are_k3s_only_and_ordered \
+  clusters.tests.test_profiles.ProfileTests.test_gpu_rule_matches_only_intel_display_with_enabled_driver \
+  clusters.tests.test_profiles.ProfileTests.test_gpu_daemonset_uses_nfd_and_exclusive_allocation \
+  clusters.tests.test_profiles.ProfileTests.test_k3s_keeps_all_addons_and_adds_collector_and_gpu
+RUN_HELM_TESTS=1 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest \
+  clusters.tests.test_profiles.PinnedChartTests.test_nfd_gpu_discovery_chart
+```
+
+These tests fetch/render pinned sources without changing the cluster. Rule tests
+assert the exact PCI/kernel conditions and representative positive/negative
+matches; they do not replace testing the actual NFD controller on the host.
+
+For rollback, stop/remove GPU consumers first, then remove the GPU Application
+from the cluster overlay in Git and allow Argo CD to prune its DaemonSet/rule.
+Leave NFD installed if anything else depends on it. If removing NFD, review its
+CRDs, NodeFeature objects and managed-label cleanup explicitly before removing
+its Application: automated pruning/finalizers can delete shared cluster APIs.
+The Helm post-delete hook is disabled, so do not assume it will remove NFD node
+labels. Use NFD's documented cleanup process in a separately reviewed operation.
+Do not unload `i915`, delete host DRM devices or remove host drivers for rollback.
+
+Sources: [Intel GPU plugin](https://github.com/intel/intel-device-plugins-for-kubernetes/blob/v0.37.1/cmd/gpu_plugin/README.md),
+[Intel detection rule](https://github.com/intel/intel-device-plugins-for-kubernetes/blob/v0.37.1/deployments/nfd/overlays/node-feature-rules/node-feature-rules.yaml),
+[NFD chart](https://github.com/kubernetes-sigs/node-feature-discovery/tree/v0.20.1/deployment/helm/node-feature-discovery).
 
 ## Staged rollout and existing-cluster migration
 
