@@ -306,6 +306,56 @@ inspect plugin logs/Pod events, the real kubelet socket and DRM device/driver
 availability. Resolve policy/host-access errors narrowly; do not enable
 privileged mode, disable AppArmor or chmod DRM devices as a generic workaround.
 
+### Inotify exhaustion: `couldn't initialize inotify: too many open files`
+
+If registration succeeds but the plugin then fails to create its socket watcher,
+check the **K3s node's** limits, not the shell on a remote kubectl client:
+
+```bash
+sysctl fs.inotify.max_user_instances fs.inotify.max_user_watches
+```
+
+`inotify_init` can return `EMFILE` when either the per-real-UID instance limit or
+the process's open-file limit is exhausted. The observed host instance limit was
+128, shared by root processes on the host and in containers. Raising a shell's
+`ulimit` does not raise this limit. Watch exhaustion instead normally fails when
+adding a watch with `ENOSPC`; increasing `max_user_watches` alone does not fix
+instance exhaustion.
+
+On the native K3s node, from the repository root, install the persistent host
+configuration and apply it immediately. Review existing sysctl configuration
+first; retain a higher instance limit if one is already configured:
+
+```bash
+sudo install -m 0644 clusters/management-k3s/99-kubernetes-inotify.conf \
+  /etc/sysctl.d/99-kubernetes-inotify.conf
+sudo sysctl -p /etc/sysctl.d/99-kubernetes-inotify.conf
+sysctl fs.inotify.max_user_instances
+```
+
+The expected instance limit is **1024** (or your existing higher value). Apply
+this prerequisite before deploying the GPU plugin on fresh nodes too. It is
+host configuration, not an Argo CD resource or a Pod `securityContext.sysctls`
+setting. Do not add a privileged init container to change host limits.
+
+The crash-looping plugin will retry automatically. To clear its backoff after
+applying the host fix, restart only this DaemonSet and verify registration:
+
+```bash
+kubectl --context management-k3s -n intel-device-plugins rollout restart daemonset/intel-gpu-plugin
+kubectl --context management-k3s -n intel-device-plugins rollout status daemonset/intel-gpu-plugin --timeout=120s
+kubectl --context management-k3s -n intel-device-plugins logs daemonset/intel-gpu-plugin --tail=100
+kubectl --context management-k3s get node management-k3s \
+  -o jsonpath='{.status.capacity.gpu\.intel\.com/i915}{" "}{.status.allocatable.gpu\.intel\.com/i915}{"\n"}'
+```
+
+Expect a ready plugin, no watcher error, and capacity/allocatable **1 1**. If
+`EMFILE` persists, inspect the plugin process's `/proc/<pid>/limits` and open
+descriptors on the node, and identify processes leaking inotify instances before
+raising limits further. No K3s service restart or GPU driver change is required.
+The host sysctl file persists independently of GitOps rollback; restore previous
+values only after checking other host/container users of inotify.
+
 ### Workload requests and optional smoke test
 
 Consumers request `gpu.intel.com/i915: 1` as an extended-resource limit.
