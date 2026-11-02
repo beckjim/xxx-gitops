@@ -27,7 +27,7 @@ spec:
               disallow-pulling: false
           gadgetConfigMaps:
             - name: trace-open-default
-              imageName: ghcr.io/inspektor-gadget/trace_open:latest
+              imageName: ghcr.io/inspektor-gadget/gadget/trace_open:v0.57.0
               timeout: 0
               logLevel: 0
               nodes: []

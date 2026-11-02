@@ -72,6 +72,9 @@ class ProfileTests(unittest.TestCase):
                 app = applications(f"platform-overlays/{cluster}")["inspektor-gadget"]
                 self.assertEqual(app["spec"]["destination"]["namespace"], "gadget")
                 self.assertIn("CreateNamespace=true", app["spec"]["syncPolicy"]["syncOptions"])
+                values = yaml.safe_load(app["spec"]["source"]["helm"]["values"])
+                self.assertEqual(values["config"]["gadgetConfigMaps"][0]["imageName"],
+                                 "ghcr.io/inspektor-gadget/gadget/trace_open:v0.57.0")
 
     def test_gpu_applications_are_k3s_only_and_ordered(self):
         names = {"node-feature-discovery", "intel-gpu-plugin"}

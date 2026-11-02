@@ -254,6 +254,9 @@ The first command should return no resources. After reconnecting, confirm the
 UI receives gadget metadata/events, not just that the daemon is Ready.
 If image pulls fail, inspect daemon logs for registry/DNS/signature errors;
 namespace migration does not resolve those. Keep image verification enabled.
+The default trace uses `ghcr.io/inspektor-gadget/gadget/trace_open:v0.57.0`,
+matching the daemon release. The `/gadget/` repository segment is required;
+`ghcr.io/inspektor-gadget/trace_open:latest` returns a registry access denial.
 Restore user-created gadget ConfigMaps into `gadget` only after reviewing their
 configuration; GitOps recreates the chart-managed default instance.
 
