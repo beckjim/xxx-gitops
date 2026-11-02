@@ -99,3 +99,28 @@ prerequisites, controller ownership, and a staged rollout.
 
 For production-like contexts, the helper asks for explicit confirmation.
 Use `--yes` for non-interactive automation when appropriate.
+
+## Create a Headlamp admin token
+
+The Headlamp chart manages the `headlamp` ServiceAccount in namespace `headlamp`
+and its `headlamp-admin` ClusterRoleBinding to `cluster-admin`. The binding name
+is not the ServiceAccount name.
+
+After Headlamp has synced, verify access and create a short-lived token on the
+intended cluster (shown here for `management-k3s`):
+
+```bash
+kubectl --context management-k3s auth can-i list events --all-namespaces --as=system:serviceaccount:headlamp:headlamp
+kubectl --context management-k3s -n headlamp create token headlamp --duration=1h
+```
+
+The access check should return `yes`. Replace `management-k3s` with the context
+for your target cluster as needed.
+
+Sign out of Headlamp and sign in with the new token. Treat it as a cluster-admin
+credential; do not commit or share it. Generate a new token when it expires.
+
+Do not create a separate `kube-system/headlamp-admin` ServiceAccount for this
+flow. Its token is not authorized by the chart-managed binding and will produce
+errors such as `cannot list resource "events" ... at the cluster scope`.
+Keep RBAC changes in Git rather than editing the chart-managed binding manually.
