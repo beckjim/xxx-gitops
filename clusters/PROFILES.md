@@ -215,6 +215,51 @@ and configure a tested retention/deletion policy before sustained ingestion.
 Alloy positions default to ephemeral storage and restarts can reread recent
 files; its log collection is not a guaranteed exactly-once archival pipeline.
 
+## Headlamp desktop and Inspektor Gadget
+
+The official Headlamp Inspektor Gadget plugin currently hardcodes the daemon
+port-forward endpoint to namespace `gadget`. The shared Inspektor Gadget
+Application therefore deploys to `gadget` and enables namespace creation. This
+applies to all profiles, not just native K3s. Headlamp's own namespace and
+desktop installation do not need to change.
+
+An older deployment in `kube-system` can appear healthy in Argo CD while the
+desktop plugin spins after Create/Run: it tries to connect to the right Pod
+name in the wrong namespace. Confirm a failing
+`/api/v1/namespaces/gadget/pods/<pod>/portforward?ports=8080` request in
+Headlamp's developer tools. The plugin also needs permission to list nodes/Pods
+and create `pods/portforward` in `gadget`; do not grant cluster-admin merely
+to work around a namespace mismatch.
+
+For an existing cluster, schedule a short interruption of gadget sessions:
+
+1. Stop active gadgets and back up any user-created ConfigMaps labeled
+   `type=gadget-instance` in `kube-system`. Do not delete the namespace.
+2. Commit/push the namespace change and sync the parent platform Application,
+   then `inspektor-gadget` with pruning. The old namespaced resources must be
+   removed; do not leave two gadget DaemonSets running on the same nodes.
+   The chart's cluster-scoped RBAC bindings must now reference the `gadget`
+   ServiceAccount in namespace `gadget`.
+3. Check that the old DaemonSet is gone and the new one is ready, then reopen
+   Headlamp and retry Create/Run:
+
+```bash
+kubectl --context management-k3s -n kube-system get daemonset gadget --ignore-not-found
+kubectl --context management-k3s -n gadget rollout status daemonset/gadget --timeout=120s
+kubectl --context management-k3s -n gadget logs daemonset/gadget --since=5m --tail=100
+kubectl --context management-k3s auth can-i create pods/portforward -n gadget
+```
+
+The first command should return no resources. After reconnecting, confirm the
+UI receives gadget metadata/events, not just that the daemon is Ready.
+If image pulls fail, inspect daemon logs for registry/DNS/signature errors;
+namespace migration does not resolve those. Keep image verification enabled.
+Restore user-created gadget ConfigMaps into `gadget` only after reviewing their
+configuration; GitOps recreates the chart-managed default instance.
+
+Plugin connection implementation:
+[official Headlamp plugin](https://github.com/inspektor-gadget/headlamp-plugin/blob/main/src/gadgets/conn.tsx).
+
 ## Intel GPU allocation with NFD (management-k3s only)
 
 The native K3s overlay adds two Argo CD Applications:

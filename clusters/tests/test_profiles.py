@@ -66,6 +66,13 @@ class ProfileTests(unittest.TestCase):
         params = apps["kubescape"]["spec"]["source"]["helm"]["parameters"]
         self.assertIn({"name": "clusterName", "value": "management-k3s"}, params)
 
+    def test_gadget_namespace_matches_headlamp_plugin(self):
+        for cluster in ("management", "management-kind", "management-k3s", "dev", "staging", "prod"):
+            with self.subTest(cluster=cluster):
+                app = applications(f"platform-overlays/{cluster}")["inspektor-gadget"]
+                self.assertEqual(app["spec"]["destination"]["namespace"], "gadget")
+                self.assertIn("CreateNamespace=true", app["spec"]["syncPolicy"]["syncOptions"])
+
     def test_gpu_applications_are_k3s_only_and_ordered(self):
         names = {"node-feature-discovery", "intel-gpu-plugin"}
         for cluster in ("management", "management-kind", "dev", "staging", "prod"):
@@ -264,6 +271,41 @@ class ConfigurationValidationTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("RUN_HELM_TESTS") == "1", "Set RUN_HELM_TESTS=1 to fetch and render pinned charts")
 class PinnedChartTests(unittest.TestCase):
+    def test_gadget_namespace_and_rbac(self):
+        app = applications("platform-overlays/management-k3s")["inspektor-gadget"]
+        source = app["spec"]["source"]
+        helm = source["helm"]
+        with tempfile.TemporaryDirectory() as temp:
+            values = Path(temp) / "values.yaml"
+            values.write_text(helm["values"])
+            command = [
+                "helm", "template", helm["releaseName"], source["chart"],
+                "--repo", source["repoURL"], "--version", source["targetRevision"],
+                "--namespace", app["spec"]["destination"]["namespace"],
+                "--values", str(values),
+            ]
+            for parameter in helm.get("parameters", []):
+                command += ["--set", f"{parameter['name']}={parameter['value']}"]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+            for item in resources:
+                if item["kind"] in ("DaemonSet", "ConfigMap", "ServiceAccount", "Role", "RoleBinding"):
+                    self.assertEqual(item["metadata"]["namespace"], "gadget")
+                if item["kind"] in ("RoleBinding", "ClusterRoleBinding"):
+                    for subject in item.get("subjects", []):
+                        if subject["kind"] == "ServiceAccount":
+                            namespace = subject.get("namespace", item["metadata"].get("namespace"))
+                            self.assertEqual(namespace, "gadget")
+            daemonset = next(item for item in resources if item["kind"] == "DaemonSet")
+            self.assertEqual(daemonset["metadata"]["name"], "gadget")
+            self.assertEqual(daemonset["spec"]["template"]["metadata"]["labels"]["k8s-app"], "gadget")
+            config = next(item for item in resources
+                          if item["kind"] == "ConfigMap" and item["metadata"]["name"] == "gadget")
+            settings = yaml.safe_load(config["data"]["config.yaml"])
+            self.assertEqual(settings["gadget-namespace"], "gadget")
+            self.assertEqual(settings["containerd-socketpath"], "/run/k3s/containerd/containerd.sock")
+
     def test_nfd_gpu_discovery_chart(self):
         app = applications("platform-overlays/management-k3s")["node-feature-discovery"]
         source = app["spec"]["source"]
